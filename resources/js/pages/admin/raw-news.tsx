@@ -1,6 +1,5 @@
-import { Link, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import AdminLayout from '@/layouts/admin-layout';
 
 interface RawNewsItem {
     id: number;
@@ -73,7 +72,8 @@ export default function RawNews({ news }: Props) {
     };
 
     return (
-        <AdminLayout title="Raw News">
+        <>
+            <Head title="Raw News" />
             <div className="mb-4 flex justify-between items-center">
                 <p className="text-sm text-gray-400">Unprocessed news items fetched from providers.</p>
                 <button
@@ -157,6 +157,19 @@ export default function RawNews({ news }: Props) {
 
             {/* Simple pagination info */}
             <div className="mt-4 text-xs text-gray-500">Showing {news.data.length} items • Use Laravel pagination links if more pages.</div>
-        </AdminLayout>
+        </>
     );
 }
+
+RawNews.layout = {
+    breadcrumbs: [
+        {
+            title: 'Admin',
+            href: '/admin',
+        },
+        {
+            title: 'Raw News',
+            href: '/admin/raw-news',
+        },
+    ],
+};

@@ -1,5 +1,4 @@
-import { router } from '@inertiajs/react';
-import AdminLayout from '@/layouts/admin-layout';
+import { Head, router } from '@inertiajs/react';
 
 interface ChatMessage {
     id: string;
@@ -21,7 +20,8 @@ return;
     };
 
     return (
-        <AdminLayout title="Public Chat Moderation">
+        <>
+            <Head title="Public Chat Moderation" />
             <div className="mb-4 flex justify-between">
                 <p className="text-sm text-gray-400">Messages older than 48 hours are automatically pruned by scheduler.</p>
                 <button onClick={prune} className="px-4 py-2 text-sm rounded-xl border border-red-500/40 text-red-400 hover:bg-red-950/40">Prune old messages</button>
@@ -36,6 +36,19 @@ return;
                     </div>
                 ))}
             </div>
-        </AdminLayout>
+        </>
     );
 }
+
+AdminChat.layout = {
+    breadcrumbs: [
+        {
+            title: 'Admin',
+            href: '/admin',
+        },
+        {
+            title: 'Chat',
+            href: '/admin/chat',
+        },
+    ],
+};

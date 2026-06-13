@@ -16,7 +16,8 @@ Return ONLY a valid JSON object — no markdown, no explanation, no extra text:
 
 {
   "place_name": "Most specific location name",
-  "confidence": "street|district|city|region|country|none"
+  "confidence": "street|district|city|region|country|none",
+  "hashtags": ["protest", "demonstration", "jakarta"]
 }
 
 Rules:
@@ -26,16 +27,17 @@ Rules:
 - "region" = state, province, or large region only. Prefer "Region, Country" when possible.
 - "country" = country only.
 - "none" = no clear location can be determined from the article.
-- If confidence is "none", set "place_name" to null.
+- If confidence is "none", set "place_name" to null and "hashtags" to [].
 - Return the cleanest place name possible that is suitable for geocoding.
 - Prefer the most specific level that applies and always include country when it is a city or more specific (street/district/city).
+- "hashtags": Generate 3-8 relevant lowercase hashtags (without #) based on the news headline and content. Focus on the event topic (e.g. protest, strike, demonstration, location, cause). Deduplicate and keep them short and descriptive.
 PROMPT;
 
     public function geocode(string $headline, string $content): ?array
     {
         $setting = LlmSetting::current();
 
-        $userMessage = "Headline: {$headline}\n\nContent: " . mb_substr($content, 0, 1500);
+        $userMessage = "Headline: {$headline}\n\nContent: ".mb_substr($content, 0, 1500);
 
         Log::info('LLM API Request', [
             'provider' => $setting->provider,
@@ -57,13 +59,13 @@ PROMPT;
                 ->withToken($setting->api_key)
                 ->withHeaders(array_filter([
                     'HTTP-Referer' => config('app.url'),
-                    'X-Title'      => config('app.name'),
+                    'X-Title' => config('app.name'),
                 ]))
-                ->post(rtrim($setting->api_base_url, '/') . '/chat/completions', [
-                    'model'       => $setting->model_slug,
-                    'max_tokens'  => 1024,
+                ->post(rtrim($setting->api_base_url, '/').'/chat/completions', [
+                    'model' => $setting->model_slug,
+                    'max_tokens' => 1024,
                     'temperature' => 0,
-                    'messages'    => [
+                    'messages' => [
                         ['role' => 'system', 'content' => $this->systemPrompt],
                         ['role' => 'user', 'content' => $userMessage],
                     ],
@@ -81,58 +83,69 @@ PROMPT;
 
             $data = $this->extractJson($raw);
 
-            if (!is_array($data)) {
+            if (! is_array($data)) {
                 Log::warning('LLM geocoder: invalid JSON response', [
                     'provider' => $setting->provider,
                     'raw' => $raw,
                     'message_keys' => array_keys($message),
                 ]);
-                return null;
+
+                return [
+                    'place_name' => null,
+                    'latitude' => null,
+                    'longitude' => null,
+                    'confidence' => 'none',
+                    'hashtags' => [],
+                ];
             }
 
             $placeName = $data['place_name'] ?? null;
             $confidence = $data['confidence'] ?? 'none';
+            $hashtags = $data['hashtags'] ?? [];
 
-            if (!$placeName || $confidence === 'none') {
+            if (! $placeName || $confidence === 'none') {
                 return [
                     'place_name' => null,
-                    'latitude'   => null,
-                    'longitude'  => null,
+                    'latitude' => null,
+                    'longitude' => null,
                     'confidence' => 'none',
+                    'hashtags' => [],
                 ];
             }
 
             // Resolve the location name to accurate coordinates using configured geocoding provider
             $geocoding = $this->geocodePlaceName($placeName);
 
-            if (!$geocoding) {
+            if (! $geocoding) {
                 Log::info('Geocoding failed for place', [
                     'place_name' => $placeName,
-                    'provider'   => $setting->provider,
+                    'provider' => $setting->provider,
                 ]);
 
                 return [
                     'place_name' => $placeName,
-                    'latitude'   => null,
-                    'longitude'  => null,
+                    'latitude' => null,
+                    'longitude' => null,
                     'confidence' => 'none',
+                    'hashtags' => [],
                 ];
             }
 
             // When LLM is confident at city level, prefer the geocoded place name (from Mapbox/OSM)
             // that includes country/region to reduce ambiguity (e.g. "Paris, France" instead of just "Paris").
             $finalPlaceName = $placeName;
-            if ($confidence === 'city' && !empty($geocoding['geocoded_place_name'])) {
-                if (!str_contains($placeName, ',') || strlen($placeName) < 8) {
+            if ($confidence === 'city' && ! empty($geocoding['geocoded_place_name'])) {
+                if (! str_contains($placeName, ',') || strlen($placeName) < 8) {
                     $finalPlaceName = $geocoding['geocoded_place_name'];
                 }
             }
 
             return [
                 'place_name' => $finalPlaceName,
-                'latitude'   => $geocoding['latitude'],
-                'longitude'  => $geocoding['longitude'],
+                'latitude' => $geocoding['latitude'],
+                'longitude' => $geocoding['longitude'],
                 'confidence' => $confidence,
+                'hashtags' => $hashtags,
             ];
         } catch (\Exception $e) {
             Log::error('LLM geocoder error', [
@@ -140,7 +153,14 @@ PROMPT;
                 'model' => $setting->model_slug,
                 'message' => $e->getMessage(),
             ]);
-            return null;
+
+            return [
+                'place_name' => null,
+                'latitude' => null,
+                'longitude' => null,
+                'confidence' => 'none',
+                'hashtags' => [],
+            ];
         }
     }
 
@@ -200,8 +220,9 @@ PROMPT;
     {
         $token = $setting->api_key ?: config('services.mapbox.token');
 
-        if (!$token) {
+        if (! $token) {
             Log::warning('Mapbox token is not configured');
+
             return null;
         }
 
@@ -212,17 +233,18 @@ PROMPT;
                 "https://api.mapbox.com/geocoding/v5/mapbox.places/{$encoded}.json",
                 [
                     'access_token' => $token,
-                    'limit'        => 1,
-                    'types'        => 'address,neighborhood,district,locality,place,region,country',
-                    'language'     => 'en',
+                    'limit' => 1,
+                    'types' => 'address,neighborhood,district,locality,place,region,country',
+                    'language' => 'en',
                 ]
             );
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 Log::warning('Mapbox Geocoding API error', [
                     'status' => $response->status(),
-                    'body'   => $response->body(),
+                    'body' => $response->body(),
                 ]);
+
                 return null;
             }
 
@@ -236,20 +258,21 @@ PROMPT;
             $center = $feature['center'] ?? null; // [longitude, latitude]
             $geocodedPlaceName = $feature['place_name'] ?? null;
 
-            if (!is_array($center) || count($center) < 2) {
+            if (! is_array($center) || count($center) < 2) {
                 return null;
             }
 
             return [
-                'latitude'            => (float) $center[1],
-                'longitude'           => (float) $center[0],
+                'latitude' => (float) $center[1],
+                'longitude' => (float) $center[0],
                 'geocoded_place_name' => $geocodedPlaceName,
             ];
         } catch (\Exception $e) {
             Log::error('Mapbox geocoding exception', [
                 'place_name' => $placeName,
-                'message'    => $e->getMessage(),
+                'message' => $e->getMessage(),
             ]);
+
             return null;
         }
     }
@@ -262,22 +285,23 @@ PROMPT;
         try {
             $response = Http::timeout(10)
                 ->withHeaders([
-                    'User-Agent' => config('app.name') . '/1.0 (MarchSeek)',
-                    'Accept'     => 'application/json',
+                    'User-Agent' => config('app.name').'/1.0 (MarchSeek)',
+                    'Accept' => 'application/json',
                 ])
                 ->get('https://nominatim.openstreetmap.org/search', [
-                    'q'                => $placeName,
-                    'format'           => 'json',
-                    'limit'            => 1,
-                    'addressdetails'   => 1,
-                    'accept-language'  => 'en',
+                    'q' => $placeName,
+                    'format' => 'json',
+                    'limit' => 1,
+                    'addressdetails' => 1,
+                    'accept-language' => 'en',
                 ]);
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 Log::warning('OpenStreetMap Geocoding API error', [
                     'status' => $response->status(),
-                    'body'   => $response->body(),
+                    'body' => $response->body(),
                 ]);
+
                 return null;
             }
 
@@ -290,15 +314,16 @@ PROMPT;
             $result = $results[0];
 
             return [
-                'latitude'            => (float) $result['lat'],
-                'longitude'           => (float) $result['lon'],
+                'latitude' => (float) $result['lat'],
+                'longitude' => (float) $result['lon'],
                 'geocoded_place_name' => $result['display_name'] ?? null,
             ];
         } catch (\Exception $e) {
             Log::error('OpenStreetMap geocoding exception', [
                 'place_name' => $placeName,
-                'message'    => $e->getMessage(),
+                'message' => $e->getMessage(),
             ]);
+
             return null;
         }
     }

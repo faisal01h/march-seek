@@ -12,10 +12,17 @@ use Inertia\Response;
 
 class PreprocessedNewsController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $query = PreprocessedNews::query()->latest('fetched_at');
+
+        if ($search = $request->input('search')) {
+            $query->search($search);
+        }
+
         return Inertia::render('admin/preprocessed-news', [
-            'news' => PreprocessedNews::latest('fetched_at')->paginate(50),
+            'news' => $query->paginate(50)->withQueryString(),
+            'search' => $search,
         ]);
     }
 
@@ -41,6 +48,12 @@ class PreprocessedNewsController extends Controller
                 'geocode_confidence' => $result['confidence'],
                 'fetched_at' => now(),
             ]);
+
+            if (! empty($result['hashtags'])) {
+                $preprocessedNews->syncHashtagsAndSearchVector($result['hashtags']);
+            } else {
+                $preprocessedNews->updateSearchVector();
+            }
 
             return back()->with('success', 'Location reassessed (LLM → Mapbox).');
         }
@@ -76,6 +89,13 @@ class PreprocessedNewsController extends Controller
                     'geocode_confidence' => $result['confidence'],
                     'fetched_at' => now(),
                 ]);
+
+                if (! empty($result['hashtags'])) {
+                    $preprocessedNews->syncHashtagsAndSearchVector($result['hashtags']);
+                } else {
+                    $preprocessedNews->updateSearchVector();
+                }
+
                 $count++;
             }
         }

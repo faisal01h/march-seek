@@ -13,6 +13,7 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
         { href: '/admin/preprocessed-news', label: 'Preprocessed' },
         { href: '/admin/llm-settings', label: 'LLM Settings' },
         { href: '/admin/geocoding-settings', label: 'Geocoding Settings' },
+        { href: '/admin/map-settings', label: 'Map Settings' },
         { href: '/admin/rss-feeds', label: 'RSS Feeds' },
         { href: '/admin/chat', label: 'Chat' },
     ];

@@ -1,7 +1,6 @@
-import { useForm } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { useState } from 'react';
-import AdminLayout from '@/layouts/admin-layout';
 
 interface Setting {
     id?: number;
@@ -42,7 +41,8 @@ export default function GeocodingSettings({ setting }: Props) {
     };
 
     return (
-        <AdminLayout title="Geocoding Settings">
+        <>
+            <Head title="Geocoding Settings" />
             <div className="max-w-xl">
                 <form onSubmit={submit} className="space-y-4">
                     <div>
@@ -90,6 +90,19 @@ export default function GeocodingSettings({ setting }: Props) {
                     <p><strong>OpenStreetMap (Nominatim):</strong> Free, no key required. Please be respectful of rate limits (1 request/sec recommended). May be less precise for some locations.</p>
                 </div>
             </div>
-        </AdminLayout>
+        </>
     );
 }
+
+GeocodingSettings.layout = {
+    breadcrumbs: [
+        {
+            title: 'Admin',
+            href: '/admin',
+        },
+        {
+            title: 'Geocoding Settings',
+            href: '/admin/geocoding-settings',
+        },
+    ],
+};

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\MapSetting;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -43,6 +44,24 @@ class HandleInertiaRequests extends Middleware
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'mapboxToken' => config('services.mapbox.token'),
+            'mapConfig' => (function () {
+                try {
+                    $setting = MapSetting::current();
+
+                    return [
+                        'provider' => $setting->provider ?? 'mapbox',
+                        'mapboxToken' => $setting->mapbox_token ?: config('services.mapbox.token'),
+                        'osmStyle' => $setting->osm_style ?? 'positron',
+                    ];
+                } catch (\Throwable $e) {
+                    // Graceful fallback if table doesn't exist yet (pre-migration) or DB issue
+                    return [
+                        'provider' => 'mapbox',
+                        'mapboxToken' => config('services.mapbox.token'),
+                        'osmStyle' => 'positron',
+                    ];
+                }
+            })(),
         ];
     }
 }

@@ -1,5 +1,4 @@
-import { Link } from '@inertiajs/react';
-import AdminLayout from '@/layouts/admin-layout';
+import { Head, Link } from '@inertiajs/react';
 
 interface Props {
     rawCount: number;
@@ -8,7 +7,7 @@ interface Props {
     queuedJobs: number;
 }
 
-export default function Dashboard({ rawCount, preprocessedCount, lastFetchedAt, queuedJobs }: Props) {
+export default function AdminDashboard({ rawCount, preprocessedCount, lastFetchedAt, queuedJobs }: Props) {
     const stats = [
         { label: 'Raw News Items', value: rawCount },
         { label: 'Geocoded Events', value: preprocessedCount },
@@ -17,7 +16,8 @@ export default function Dashboard({ rawCount, preprocessedCount, lastFetchedAt, 
     ];
 
     return (
-        <AdminLayout title="Dashboard">
+        <>
+            <Head title="Admin Dashboard" />
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                 {stats.map((stat, i) => (
                     <div key={i} className="rounded-2xl border border-white/10 bg-gray-900/60 p-5">
@@ -35,6 +35,15 @@ export default function Dashboard({ rawCount, preprocessedCount, lastFetchedAt, 
             </div>
 
             <p className="mt-8 text-xs text-gray-500">Tip: Use the "Refetch now" buttons on the Raw News page or run <code>php artisan news:fetch</code> to pull fresh protest data.</p>
-        </AdminLayout>
+        </>
     );
 }
+
+AdminDashboard.layout = {
+    breadcrumbs: [
+        {
+            title: 'Admin',
+            href: '/admin',
+        },
+    ],
+};

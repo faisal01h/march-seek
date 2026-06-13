@@ -1,6 +1,5 @@
-import { router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import AdminLayout from '@/layouts/admin-layout';
 
 interface PreItem {
     id: string;
@@ -14,10 +13,12 @@ interface PreItem {
 
 interface Props {
     news: { data: PreItem[] };
+    search?: string;
 }
 
-export default function PreprocessedNews({ news }: Props) {
+export default function PreprocessedNews({ news, search = '' }: Props) {
     const [selected, setSelected] = useState<string[]>([]);
+    const [searchTerm, setSearchTerm] = useState(search);
 
     const destroy = (id: string) => {
         if (!confirm('Delete this geocoded event?')) {
@@ -68,8 +69,46 @@ export default function PreprocessedNews({ news }: Props) {
     }, [news.data]);
 
     return (
-        <AdminLayout title="Preprocessed / Geocoded Events">
+        <>
+            <Head title="Preprocessed / Geocoded Events" />
             <p className="text-sm text-gray-400 mb-4">Events successfully located by the LLM and shown on the public map.</p>
+
+            <form
+                onSubmit={(e) => {
+                    e.preventDefault();
+                    router.get('/admin/preprocessed-news', { search: searchTerm }, {
+                        preserveState: true,
+                        preserveScroll: true,
+                    });
+                }}
+                className="mb-4 flex gap-2"
+            >
+                <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search title, content, or hashtags..."
+                    className="flex-1 rounded-xl border border-white/10 bg-gray-900 px-4 py-2 text-sm focus:border-orange-500 focus:outline-none"
+                />
+                <button
+                    type="submit"
+                    className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-medium text-white"
+                >
+                    Search
+                </button>
+                {search && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setSearchTerm('');
+                            router.get('/admin/preprocessed-news', {}, { preserveState: true });
+                        }}
+                        className="rounded-xl border border-white/10 px-4 py-2 text-sm hover:bg-gray-800"
+                    >
+                        Clear
+                    </button>
+                )}
+            </form>
 
             {selected.length > 0 && (
                 <div className="mb-3 flex items-center gap-3 rounded-xl border border-white/10 bg-gray-900/60 px-4 py-2 text-sm">
@@ -137,6 +176,19 @@ export default function PreprocessedNews({ news }: Props) {
                     </tbody>
                 </table>
             </div>
-        </AdminLayout>
+        </>
     );
 }
+
+PreprocessedNews.layout = {
+    breadcrumbs: [
+        {
+            title: 'Admin',
+            href: '/admin',
+        },
+        {
+            title: 'Preprocessed',
+            href: '/admin/preprocessed-news',
+        },
+    ],
+};

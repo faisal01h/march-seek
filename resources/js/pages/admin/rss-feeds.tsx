@@ -1,6 +1,5 @@
-import { router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
-import AdminLayout from '@/layouts/admin-layout';
 
 interface RssFeed {
     id: number;
@@ -57,7 +56,8 @@ export default function RssFeeds({ feeds }: Props) {
     };
 
     return (
-        <AdminLayout title="RSS Feeds">
+        <>
+            <Head title="RSS Feeds" />
             <p className="text-sm text-gray-400 mb-4">
                 Configure RSS/Atom feeds to ingest news from. Active feeds are checked during news:fetch.
             </p>
@@ -154,6 +154,19 @@ export default function RssFeeds({ feeds }: Props) {
             <div className="mt-4 text-xs text-gray-500">
                 {feeds.data.length} feed(s) • RSS items are fetched during the hourly news ingestion and deduplicated by URL.
             </div>
-        </AdminLayout>
+        </>
     );
 }
+
+RssFeeds.layout = {
+    breadcrumbs: [
+        {
+            title: 'Admin',
+            href: '/admin',
+        },
+        {
+            title: 'RSS Feeds',
+            href: '/admin/rss-feeds',
+        },
+    ],
+};

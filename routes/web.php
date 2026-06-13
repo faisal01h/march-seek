@@ -34,6 +34,9 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::put('/geocoding-settings', [Admin\GeocodingSettingsController::class, 'update'])->name('geocoding-settings.update');
     Route::post('/geocoding-settings/test', [Admin\GeocodingSettingsController::class, 'test'])->name('geocoding-settings.test');
 
+    Route::get('/map-settings', [Admin\MapSettingsController::class, 'index'])->name('map-settings.index');
+    Route::put('/map-settings', [Admin\MapSettingsController::class, 'update'])->name('map-settings.update');
+
     Route::get('/rss-feeds', [Admin\RssFeedsController::class, 'index'])->name('rss-feeds.index');
     Route::post('/rss-feeds', [Admin\RssFeedsController::class, 'store'])->name('rss-feeds.store');
     Route::put('/rss-feeds/{rssFeed}', [Admin\RssFeedsController::class, 'update'])->name('rss-feeds.update');

@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             LlmSettingSeeder::class,
             GeocodingSettingSeeder::class,
+            MapSettingSeeder::class,
         ]);
 
         // User::factory(10)->create();

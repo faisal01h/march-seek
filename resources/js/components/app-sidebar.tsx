@@ -1,5 +1,15 @@
 import { Link } from '@inertiajs/react';
-import { BookOpen, FolderGit2, LayoutGrid } from 'lucide-react';
+import {
+    BookOpen,
+    FileText,
+    FolderGit2,
+    LayoutGrid,
+    MapPin,
+    MessageSquare,
+    Rss,
+    Settings,
+    Shield,
+} from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -21,6 +31,46 @@ const mainNavItems: NavItem[] = [
         title: 'Dashboard',
         href: dashboard(),
         icon: LayoutGrid,
+    },
+    {
+        title: 'Admin',
+        href: '/admin',
+        icon: Shield,
+    },
+    {
+        title: 'Raw News',
+        href: '/admin/raw-news',
+        icon: FileText,
+    },
+    {
+        title: 'Preprocessed',
+        href: '/admin/preprocessed-news',
+        icon: MapPin,
+    },
+    {
+        title: 'LLM Settings',
+        href: '/admin/llm-settings',
+        icon: Settings,
+    },
+    {
+        title: 'Geocoding',
+        href: '/admin/geocoding-settings',
+        icon: Settings,
+    },
+    {
+        title: 'Map Settings',
+        href: '/admin/map-settings',
+        icon: Settings,
+    },
+    {
+        title: 'RSS Feeds',
+        href: '/admin/rss-feeds',
+        icon: Rss,
+    },
+    {
+        title: 'Chat',
+        href: '/admin/chat',
+        icon: MessageSquare,
     },
 ];
 

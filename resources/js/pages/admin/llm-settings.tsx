@@ -1,7 +1,6 @@
-import { useForm } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import type { FormEvent} from 'react';
 import { useState } from 'react';
-import AdminLayout from '@/layouts/admin-layout';
 
 interface Setting {
     id?: number;
@@ -46,7 +45,8 @@ export default function LlmSettings({ setting }: Props) {
     };
 
     return (
-        <AdminLayout title="LLM Settings">
+        <>
+            <Head title="LLM Settings" />
             <div className="max-w-xl">
                 <form onSubmit={submit} className="space-y-4">
                     <div>
@@ -108,6 +108,19 @@ export default function LlmSettings({ setting }: Props) {
 
                 <p className="text-xs text-gray-500 mt-6">For LM Studio use http://host.docker.internal:1234/v1 and no key. DeepSeek: https://api.deepseek.com/v1 + model deepseek-chat.</p>
             </div>
-        </AdminLayout>
+        </>
     );
 }
+
+LlmSettings.layout = {
+    breadcrumbs: [
+        {
+            title: 'Admin',
+            href: '/admin',
+        },
+        {
+            title: 'LLM Settings',
+            href: '/admin/llm-settings',
+        },
+    ],
+};
