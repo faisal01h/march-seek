@@ -7,7 +7,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { login } from '@/routes';
-import { store } from '@/routes/register';
+
+// Dynamically import the Wayfinder register route helper.
+// When REGISTRATION_ENABLED=false, Fortify does not register the route,
+// so the generated file won't exist at build time. Using a dynamic import
+// (with a safe fallback) allows the production build to succeed without errors.
+const registerModule = import.meta.env.VITE_REGISTRATION_ENABLED === 'false'
+  ? Promise.resolve({ store: { form: () => ({ action: '/register', method: 'post' as const }) } })
+  : import(/* @vite-ignore */ '@/routes/register');
+
+const { store } = await registerModule;
 
 type Props = {
     passwordRules: string;

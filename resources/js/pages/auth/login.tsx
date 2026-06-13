@@ -8,9 +8,16 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
-import { register } from '@/routes';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
+
+// Dynamic import of the register route definition.
+// Guarded so build succeeds when REGISTRATION_ENABLED=false (Wayfinder doesn't emit it).
+const routes = import.meta.env.VITE_REGISTRATION_ENABLED === 'false'
+  ? { register: () => '#' }
+  : await import(/* @vite-ignore */ '@/routes');
+
+const { register } = routes;
 
 type Props = {
     status?: string;
