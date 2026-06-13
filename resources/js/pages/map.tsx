@@ -29,6 +29,7 @@ export default function Map() {
     const [allFeatures, setAllFeatures] = useState<any[]>([]);
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
     const hasAutoSelectedRef = useRef(false);
+    const [happeningOpen, setHappeningOpen] = useState(true);
 
     function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
         const R = 6371; // km
@@ -398,24 +399,35 @@ return;
 
                 {/* Currently Happening section - recent events from last 24h (server filtered) */}
                 {currentEvents.length > 0 && (
-                    <div className="mt-1 w-72 max-h-[340px] overflow-y-auto rounded-2xl border border-white/10 bg-gray-900/90 p-3 text-xs shadow-2xl">
-                        <div className="mb-2 flex items-center justify-between">
-                            <span className="font-semibold tracking-wide text-orange-400">Currently Happening</span>
-                            <span className="text-[10px] text-gray-500">last 24h</span>
+                    <div className="mt-1 w-[min(18rem,calc(100vw-2rem))] max-h-[50vh] sm:max-h-[340px] overflow-hidden rounded-2xl border border-white/10 bg-gray-900/90 text-xs shadow-2xl">
+                        <div 
+                            className="flex cursor-pointer items-center justify-between border-b border-white/10 px-3 py-2 hover:bg-white/5"
+                            onClick={() => setHappeningOpen(!happeningOpen)}
+                        >
+                            <div className="flex items-center gap-2">
+                                <span className="font-semibold tracking-wide text-orange-400">Currently Happening</span>
+                                <span className="text-[10px] text-gray-500">({currentEvents.length})</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                                <span className="hidden sm:inline">last 24h</span>
+                                <span className={`inline-block transition-transform ${happeningOpen ? 'rotate-180' : ''}`}>▼</span>
+                            </div>
                         </div>
-                        <div className="space-y-2 pr-1">
-                            {currentEvents.map((ev, idx) => (
-                                <div
-                                    key={ev.id || idx}
-                                    onClick={() => selectEvent(ev)}
-                                    className="cursor-pointer rounded-lg px-2 py-1.5 hover:bg-white/5 transition-colors"
-                                >
-                                    <div className="font-medium text-gray-100 truncate">{ev.place_name || 'Unknown location'}</div>
-                                    <div className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-gray-300">{ev.headline}</div>
-                                    <div className="mt-0.5 text-[9px] text-gray-500">{formatTime(ev.fetched_at)}</div>
-                                </div>
-                            ))}
-                        </div>
+                        {happeningOpen && (
+                            <div className="max-h-[calc(50vh-2.5rem)] sm:max-h-[300px] overflow-y-auto space-y-2 p-3 pr-2">
+                                {currentEvents.map((ev, idx) => (
+                                    <div
+                                        key={ev.id || idx}
+                                        onClick={() => selectEvent(ev)}
+                                        className="cursor-pointer rounded-lg px-2 py-1.5 hover:bg-white/5 transition-colors active:bg-white/10"
+                                    >
+                                        <div className="font-medium text-gray-100 truncate">{ev.place_name || 'Unknown location'}</div>
+                                        <div className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-gray-300">{ev.headline}</div>
+                                        <div className="mt-0.5 text-[9px] text-gray-500">{formatTime(ev.fetched_at)}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

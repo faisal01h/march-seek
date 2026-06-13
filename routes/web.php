@@ -24,6 +24,7 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::get('/preprocessed-news', [Admin\PreprocessedNewsController::class, 'index'])->name('preprocessed-news.index');
     Route::delete('/preprocessed-news/{preprocessedNews}', [Admin\PreprocessedNewsController::class, 'destroy'])->name('preprocessed-news.destroy');
     Route::post('/preprocessed-news/{preprocessedNews}/reassess', [Admin\PreprocessedNewsController::class, 'reassess'])->name('preprocessed-news.reassess');
+    Route::post('/preprocessed-news/bulk-reassess', [Admin\PreprocessedNewsController::class, 'bulkReassess'])->name('preprocessed-news.bulk-reassess');
 
     Route::get('/llm-settings', [Admin\LlmSettingsController::class, 'index'])->name('llm-settings.index');
     Route::put('/llm-settings', [Admin\LlmSettingsController::class, 'update'])->name('llm-settings.update');

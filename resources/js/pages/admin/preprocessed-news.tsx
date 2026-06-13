@@ -1,4 +1,5 @@
 import { router } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/admin-layout';
 
 interface PreItem {
@@ -16,6 +17,8 @@ interface Props {
 }
 
 export default function PreprocessedNews({ news }: Props) {
+    const [selected, setSelected] = useState<string[]>([]);
+
     const destroy = (id: string) => {
         if (!confirm('Delete this geocoded event?')) {
             return;
@@ -30,14 +33,74 @@ export default function PreprocessedNews({ news }: Props) {
         router.post(`/admin/preprocessed-news/${id}/reassess`);
     };
 
+    const toggleSelect = (id: string) => {
+        setSelected(prev =>
+            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+        );
+    };
+
+    const toggleSelectAll = () => {
+        const currentIds = news.data.map(i => i.id);
+        const allSelected = currentIds.length > 0 && currentIds.every(id => selected.includes(id));
+
+        if (allSelected) {
+            setSelected(prev => prev.filter(id => !currentIds.includes(id)));
+        } else {
+            setSelected(prev => [...new Set([...prev, ...currentIds])]);
+        }
+    };
+
+    const isAllSelected = news.data.length > 0 && news.data.every(item => selected.includes(item.id));
+
+    const handleBulkReassess = () => {
+        if (selected.length === 0) return;
+        if (!confirm(`Reassess ${selected.length} selected items?`)) return;
+
+        router.post('/admin/preprocessed-news/bulk-reassess', { ids: selected }, {
+            onSuccess: () => setSelected([]),
+        });
+    };
+
+    // Remove any selected IDs that are no longer in the current page data
+    useEffect(() => {
+        const currentIds = news.data.map(i => i.id);
+        setSelected(prev => prev.filter(id => currentIds.includes(id)));
+    }, [news.data]);
+
     return (
         <AdminLayout title="Preprocessed / Geocoded Events">
             <p className="text-sm text-gray-400 mb-4">Events successfully located by the LLM and shown on the public map.</p>
+
+            {selected.length > 0 && (
+                <div className="mb-3 flex items-center gap-3 rounded-xl border border-white/10 bg-gray-900/60 px-4 py-2 text-sm">
+                    <span className="text-gray-300">{selected.length} selected</span>
+                    <button
+                        onClick={handleBulkReassess}
+                        className="rounded-lg bg-blue-500/80 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
+                    >
+                        Reassess selected
+                    </button>
+                    <button
+                        onClick={() => setSelected([])}
+                        className="rounded-lg bg-gray-700 px-3 py-1.5 text-xs hover:bg-gray-600"
+                    >
+                        Clear selection
+                    </button>
+                </div>
+            )}
 
             <div className="overflow-x-auto rounded-2xl border border-white/10 bg-gray-900/50">
                 <table className="min-w-full text-sm">
                     <thead className="text-left text-gray-400 border-b border-white/10">
                         <tr>
+                            <th className="w-8 px-3 py-3">
+                                <input
+                                    type="checkbox"
+                                    checked={isAllSelected}
+                                    onChange={toggleSelectAll}
+                                    className="accent-orange-500"
+                                />
+                            </th>
                             <th className="px-4 py-3 font-normal">Headline</th>
                             <th className="px-4 py-3 font-normal">Place</th>
                             <th className="px-4 py-3 font-normal">Confidence</th>
@@ -47,9 +110,17 @@ export default function PreprocessedNews({ news }: Props) {
                         </tr>
                     </thead>
                     <tbody>
-                        {news.data.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">No processed events.</td></tr>}
+                        {news.data.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">No processed events.</td></tr>}
                         {news.data.map((item) => (
                             <tr key={item.id} className="border-b border-white/5 hover:bg-white/5">
+                                <td className="px-3 py-3">
+                                    <input
+                                        type="checkbox"
+                                        checked={selected.includes(item.id)}
+                                        onChange={() => toggleSelect(item.id)}
+                                        className="accent-orange-500"
+                                    />
+                                </td>
                                 <td className="px-4 py-3 max-w-xs truncate" title={item.headline}>{item.headline}</td>
                                 <td className="px-4 py-3 text-gray-300">{item.place_name || '—'}</td>
                                 <td className="px-4 py-3">
