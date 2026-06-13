@@ -29,6 +29,36 @@ export default function Map() {
     const [allFeatures, setAllFeatures] = useState<any[]>([]);
     const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
     const hasAutoSelectedRef = useRef(false);
+    const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
+
+    const addUserLocationMarker = () => {
+        if (!userLocation || !mapRef.current) return;
+
+        const { lat, lng } = userLocation;
+
+        if (userMarkerRef.current) {
+            userMarkerRef.current.remove();
+        }
+
+        const el = document.createElement('div');
+        el.style.width = '16px';
+        el.style.height = '16px';
+        el.style.backgroundColor = '#3b82f6';
+        el.style.border = '3px solid #ffffff';
+        el.style.borderRadius = '50%';
+        el.style.boxShadow = '0 0 0 4px rgba(59, 130, 246, 0.35)';
+        el.style.cursor = 'pointer';
+        el.title = 'Your approximate location';
+
+        const marker = new mapboxgl.Marker({
+            element: el,
+            anchor: 'center',
+        })
+            .setLngLat([lng, lat])
+            .addTo(mapRef.current);
+
+        userMarkerRef.current = marker;
+    };
     const [happeningOpen, setHappeningOpen] = useState(true);
 
     function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -142,6 +172,27 @@ export default function Map() {
         }
     }, [userLocation, allFeatures]);
 
+    // Display current user location as a marker on the map (purely frontend, coords never sent to our server)
+    useEffect(() => {
+        if (!userLocation) {
+            if (userMarkerRef.current) {
+                userMarkerRef.current.remove();
+                userMarkerRef.current = null;
+            }
+            return;
+        }
+
+        addUserLocationMarker();
+
+        // Cleanup when location changes or unmount
+        return () => {
+            if (userMarkerRef.current) {
+                userMarkerRef.current.remove();
+                userMarkerRef.current = null;
+            }
+        };
+    }, [userLocation]);
+
     useEffect(() => {
         if (mapRef.current) {
             return;
@@ -175,6 +226,11 @@ export default function Map() {
                 const geojson = await res.json();
 
                 setAllFeatures(geojson.features || []);
+
+                // If user location was already resolved before map was ready, add the marker now
+                if (userLocation) {
+                    addUserLocationMarker();
+                }
 
                 // Build "Currently Happening" list (most recent first). Server already excludes >24h old.
                 const events = (geojson.features || [])
@@ -350,6 +406,11 @@ return;
             if (echoRef.current) {
                 echoRef.current.leave('public-map');
                 echoRef.current = null;
+            }
+
+            if (userMarkerRef.current) {
+                userMarkerRef.current.remove();
+                userMarkerRef.current = null;
             }
 
             if (mapRef.current) {
