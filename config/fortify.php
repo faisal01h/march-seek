@@ -150,18 +150,6 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Registration
-    |--------------------------------------------------------------------------
-    |
-    | Here you may specify whether user registration is enabled. This is
-    | useful for applications that want to control registration via .env.
-    |
-    */
-
-    'registration' => env('REGISTRATION_ENABLED', true),
-
-    /*
-    |--------------------------------------------------------------------------
     | Features
     |--------------------------------------------------------------------------
     |
@@ -171,12 +159,12 @@ return [
     |
     */
 
-    'features' => array_filter([
-        config('fortify.registration') ? Features::registration() : null,
+    'features' => [
+        Features::registration(),
         Features::resetPasswords(),
         Features::passkeys([
             'confirmPassword' => true,
         ]),
-    ]),
+    ],
 
 ];

@@ -138,8 +138,9 @@ services:
       POSTGRES_PASSWORD: secret
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # Do not publish the port to the host. Postgres is only accessible
+    # from other containers on the "marchseek" Docker network using the
+    # hostname "postgres" on port 5432.
     networks:
       - marchseek
 
