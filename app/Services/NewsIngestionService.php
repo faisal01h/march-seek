@@ -12,7 +12,7 @@ class NewsIngestionService
     public function __construct(
         private array $keywords = []
     ) {
-        $this->keywords = $keywords ?: explode(',', config('services.news_keyword_filter', 'protest,demo,unjuk rasa,aksi,perlawanan,kerusuhan,protes,strike,gas air mata'));
+        $this->keywords = $keywords ?: explode(',', config('services.news_keyword_filter', ''));
     }
 
     public function fetchAll(): int
