@@ -48,7 +48,7 @@ return [
         'api_key' => env('THENEWSAPI_API_KEY'),
     ],
 
-    'news_keyword_filter' => env('NEWS_KEYWORD_FILTER', 'protest,demo,unjuk rasa,aksi,perlawanan,kerusuhan,protes,strike,gas air mata'),
+    'news_keyword_filter' => env('NEWS_KEYWORD_FILTER', ''),
 
     'mapbox' => [
         'token' => env('MAPBOX_TOKEN'),
