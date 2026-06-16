@@ -74,6 +74,12 @@ export default function Map() {
     const searchTermRef = useRef('');
     const [showStylePicker, setShowStylePicker] = useState(false);
 
+    const [selectedHashtags, setSelectedHashtags] = useState<string[]>([]);
+    const selectedHashtagsRef = useRef<string[]>([]);
+
+    const [timespanHours, setTimespanHours] = useState(24);
+    const timespanHoursRef = useRef(24);
+
     // Trending hashtags/topics computed client-side from loaded active features (respects current search/filter)
     const trendingHashtags = useMemo(() => {
         const counts: Record<string, number> = {};
@@ -144,10 +150,10 @@ export default function Map() {
         return `${diffH}h ago`;
     }
 
-    function isActive(iso?: string): boolean {
+    function isActive(iso?: string, hours: number = timespanHoursRef.current || 24): boolean {
         if (!iso) return false;
         const diffMs = Date.now() - new Date(iso).getTime();
-        return diffMs < 24 * 60 * 60 * 1000; // within last 24 hours
+        return diffMs < hours * 60 * 60 * 1000; // within the selected timespan
     }
 
     const selectEvent = (ev: any) => {
@@ -185,19 +191,29 @@ export default function Map() {
     };
 
     // --- Search + full-text data loading helpers (re-uses the same API that powers admin preprocessed search) ---
-    async function loadMapDataForSearch(search: string) {
-        const url = search.trim()
-            ? `/api/map-data?search=${encodeURIComponent(search.trim())}`
-            : '/api/map-data';
+    async function loadMapDataForSearch(search: string = '', hashtags: string[] = [], hours: number = 24) {
+        let url = '/api/map-data';
+        const params = new URLSearchParams();
+        if (search.trim()) params.set('search', search.trim());
+        if (hashtags.length > 0) params.set('hashtags', hashtags.join(','));
+        if (hours && hours < 24) params.set('hours', hours.toString());
+        if (params.toString()) url += `?${params.toString()}`;
         const res = await fetch(url);
         const geojson = await res.json();
 
-        // Always prune to only active (recent 24h) items. Server does this too,
-        // but client-side ensures the map source, clusters, dots, counts, and lists
+        // Prune to only active items within the selected timespan (server also applies this).
+        // Client-side ensures the map source, clusters, dots, counts, and lists
         // never include stale data even as time passes or after realtime appends.
-        const features = (geojson.features || []).filter((f: any) =>
-            isActive(f.properties?.fetched_at)
+        let features = (geojson.features || []).filter((f: any) =>
+            isActive(f.properties?.fetched_at, hours)
         );
+        // Normalize hashtags to always be array (defensive against any serialization weirdness)
+        features = features.map((f: any) => {
+            if (f.properties) {
+                f.properties.hashtags = Array.isArray(f.properties.hashtags) ? f.properties.hashtags : [];
+            }
+            return f;
+        });
         setAllFeatures(features);
 
         // Rebuild the "Currently Happening" list from (active) results - show all, not limited to 8
@@ -220,12 +236,12 @@ export default function Map() {
         };
     }
 
-    async function applySearch(search: string) {
+    async function applyFilters(searchValue: string = searchTermRef.current) {
         if (!mapRef.current) {
             return;
         }
         try {
-            const geojson = await loadMapDataForSearch(search);
+            const geojson = await loadMapDataForSearch(searchValue, selectedHashtagsRef.current, timespanHoursRef.current);
             currentGeoJsonRef.current = geojson;
 
             const source = mapRef.current.getSource('news') as mapboxgl.GeoJSONSource | undefined;
@@ -235,7 +251,7 @@ export default function Map() {
                 addNewsOverlay(geojson);
             }
         } catch (err) {
-            console.error('Failed to apply search filter', err);
+            console.error('Failed to apply filters', err);
         }
     }
 
@@ -244,7 +260,9 @@ export default function Map() {
             clearTimeout(searchDebounceRef.current);
         }
         setSearchTerm('');
-        applySearch('');
+        setSelectedHashtags([]);
+        setTimespanHours(24);
+        applyFilters('');
     };
 
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -255,7 +273,7 @@ export default function Map() {
             clearTimeout(searchDebounceRef.current);
         }
         searchDebounceRef.current = setTimeout(() => {
-            applySearch(value);
+            applyFilters(value);
         }, 300);
     };
 
@@ -275,6 +293,12 @@ export default function Map() {
 
         // If you want to force a style reload in the future, you could do:
         // mapRef.current.setStyle(...) + re-add overlay on 'style.load'
+    };
+
+    const toggleHashtag = (tag: string) => {
+        setSelectedHashtags(prev =>
+            prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+        );
     };
 
     // Helper to add the news source + custom layers (clusters, dots, heatmap) on top of the current basemap style.
@@ -371,8 +395,16 @@ export default function Map() {
 
         // Click handlers (re-attach after style change)
         map.on('click', 'news-dots', (e) => {
-            const props = e.features?.[0]?.properties as MapFeatureProperties | undefined;
-            if (props) setSelectedFeature(props);
+            const feature = e.features?.[0];
+            const props = feature?.properties as MapFeatureProperties | undefined;
+            if (props && feature) {
+                const ev = {
+                    ...props,
+                    lng: feature.geometry.coordinates[0],
+                    lat: feature.geometry.coordinates[1],
+                };
+                selectEvent(ev);
+            }
         });
 
         map.on('click', 'news-clusters', (e) => {
@@ -494,6 +526,21 @@ export default function Map() {
         searchTermRef.current = searchTerm;
     }, [searchTerm]);
 
+    useEffect(() => {
+        selectedHashtagsRef.current = selectedHashtags;
+    }, [selectedHashtags]);
+
+    useEffect(() => {
+        timespanHoursRef.current = timespanHours;
+    }, [timespanHours]);
+
+    // Refetch when hashtags or timespan filter changes (after initial load)
+    useEffect(() => {
+        if (mapRef.current && currentGeoJsonRef.current) {
+            applyFilters();
+        }
+    }, [selectedHashtags, timespanHours]);
+
     // Periodic prune: remove items older than 24h from the map source even if no new events arrive.
     // This keeps cluster counts (the numbers on the orange circles), dots, and the "Currently Happening"
     // list / button counts accurate to only active recent data.
@@ -508,9 +555,17 @@ export default function Map() {
             const currentData: any = (src as any)._data || { type: 'FeatureCollection', features: [] };
             const before = currentData.features.length;
 
-            const pruned = currentData.features.filter((f: any) =>
+            let pruned = currentData.features.filter((f: any) =>
                 isActive(f.properties?.fetched_at)
             );
+
+            // Sanitize legacy non-array hashtags from source data
+            pruned = pruned.map((f: any) => {
+                if (f.properties) {
+                    f.properties.hashtags = Array.isArray(f.properties.hashtags) ? f.properties.hashtags : [];
+                }
+                return f;
+            });
 
             if (pruned.length < before) {
                 const prunedGeo = { type: 'FeatureCollection', features: pruned };
@@ -647,7 +702,7 @@ export default function Map() {
                 }
 
                 // Initial load (respects any searchTerm if user types extremely fast before map loads)
-                const geojson = await loadMapDataForSearch(searchTermRef.current);
+                const geojson = await loadMapDataForSearch(searchTermRef.current, selectedHashtagsRef.current, timespanHoursRef.current);
                 currentGeoJsonRef.current = geojson;
 
                 // If user location was already resolved before map was ready, add the marker now
@@ -671,8 +726,8 @@ return;
 
             // If user is currently searching, re-fetch the filtered dataset (FTS on server)
             // so any newly geocoded item that matches the query appears on the map + list.
-            if (searchTermRef.current.trim()) {
-                applySearch(searchTermRef.current);
+            if (searchTermRef.current.trim() || selectedHashtagsRef.current.length > 0) {
+                applyFilters(searchTermRef.current);
                 return;
             }
 
@@ -683,6 +738,14 @@ return;
             let activeFeatures = currentData.features.filter((f: any) =>
                 isActive(f.properties?.fetched_at)
             );
+
+            // Sanitize any legacy items that might have non-array hashtags (from before the data shape was updated)
+            activeFeatures = activeFeatures.map((f: any) => {
+                if (f.properties) {
+                    f.properties.hashtags = Array.isArray(f.properties.hashtags) ? f.properties.hashtags : [];
+                }
+                return f;
+            });
 
             const newId = data.id;
             const alreadyPresent = activeFeatures.some(
@@ -701,7 +764,7 @@ return;
                         provider: data.provider,
                         place_name: data.place_name,
                         fetched_at: data.fetched_at,
-                        hashtags: data.hashtags || [],
+                        hashtags: Array.isArray(data.hashtags) ? data.hashtags : [],
                     },
                 };
                 activeFeatures = [...activeFeatures, newFeature];
@@ -796,6 +859,21 @@ return;
 
                 {/* Desktop actions */}
                 <div className="hidden md:flex items-center gap-2 text-sm shrink-0">
+                    {/* Timespan filter for active news (1-24 hours) */}
+                    <div className="flex items-center gap-2 text-xs mr-2 pl-2 border-l border-white/10">
+                        <label className="text-gray-400 whitespace-nowrap">Last</label>
+                        <input
+                            type="range"
+                            min="1"
+                            max="24"
+                            step="1"
+                            value={timespanHours}
+                            onChange={(e) => setTimespanHours(parseInt(e.target.value))}
+                            className="w-16 accent-orange-500"
+                            aria-label="Timespan in hours"
+                        />
+                        <span className="text-gray-300 w-8 text-right tabular-nums">{timespanHours}h</span>
+                    </div>
                     <button
                         onClick={toggleHeatmap}
                         className={`rounded-lg px-3 py-1.5 text-xs font-medium border transition-colors ${
@@ -886,6 +964,27 @@ return;
             <div className="flex flex-1 overflow-hidden">
                 {/* Left sidebar - Trending + Currently Happening (desktop) */}
                 <div className="hidden lg:flex w-72 flex-col border-r border-white/10 bg-gray-900/60 overflow-hidden">
+                    {/* Active hashtag filters */}
+                    {selectedHashtags.length > 0 && (
+                        <div className="p-2 border-b border-white/10 text-xs">
+                            <div className="text-gray-400 mb-1 flex items-center justify-between">
+                                <span>Filtered by hashtags</span>
+                                <button onClick={() => setSelectedHashtags([])} className="text-orange-400 hover:text-orange-300">clear</button>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                                {selectedHashtags.map(h => (
+                                    <span
+                                        key={h}
+                                        onClick={() => toggleHashtag(h)}
+                                        className="px-1.5 py-0.5 bg-orange-500/20 text-orange-300 rounded cursor-pointer hover:bg-orange-500/30 flex items-center gap-0.5"
+                                    >
+                                        #{h} <span className="text-[10px]">×</span>
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Trending section - on top as requested */}
                     <div className="border-b border-white/10">
                         <div className="p-3 text-sm font-semibold text-orange-400 flex items-center gap-2">
@@ -895,7 +994,11 @@ return;
                         {trendingHashtags.length > 0 ? (
                             <div className="p-2 pt-0 space-y-0.5 text-xs max-h-32 overflow-y-auto border-b border-white/5">
                                 {trendingHashtags.map((t, i) => (
-                                    <div key={i} className="flex items-center justify-between px-2 py-0.5 rounded hover:bg-white/5">
+                                    <div
+                                        key={i}
+                                        onClick={() => toggleHashtag(t.tag)}
+                                        className={`flex items-center justify-between px-2 py-0.5 rounded hover:bg-white/5 cursor-pointer ${selectedHashtags.includes(t.tag) ? 'bg-orange-500/10' : ''}`}
+                                    >
                                         <span className="text-orange-300">#{t.tag}</span>
                                         <span className="text-gray-500 tabular-nums">{t.count}</span>
                                     </div>
@@ -909,7 +1012,7 @@ return;
                     {/* Currently Happening */}
                     <div className="flex items-center justify-between border-b border-white/10 p-3 text-sm font-semibold">
                         <div className="flex items-center gap-2 text-orange-400">
-                            {searchTerm ? 'Search results' : 'Currently Happening'}
+                            {searchTerm || selectedHashtags.length > 0 ? 'Filtered results' : (timespanHours === 24 ? 'Currently Happening' : `Last ${timespanHours}h`)}
                             <span className="text-[10px] font-normal text-gray-400">({currentEvents.length})</span>
                         </div>
                         <button
@@ -923,7 +1026,7 @@ return;
                         <div className="flex-1 overflow-y-auto p-2 space-y-1 text-xs">
                             {currentEvents.length === 0 && (
                                 <div className="p-3 text-gray-500 text-center">
-                                    {searchTerm ? 'No matches for your search.' : 'No recent events in the last 24h.'}
+                                    {searchTerm || selectedHashtags.length > 0 ? 'No matches for your search.' : `No events in the last ${timespanHours}h.`}
                                 </div>
                             )}
                             {currentEvents.map((ev, idx) => (
@@ -940,7 +1043,13 @@ return;
                                     {(ev.hashtags || []).length > 0 && (
                                         <div className="flex flex-wrap gap-1 mt-1">
                                             {(ev.hashtags || []).slice(0, 4).map((h: string, i: number) => (
-                                                <span key={i} className="px-1 py-0.5 text-[8px] bg-orange-500/10 text-orange-300 rounded">#{h}</span>
+                                                <span
+                                                    key={i}
+                                                    onClick={(e) => { e.stopPropagation(); toggleHashtag(h); }}
+                                                    className={`px-1 py-0.5 text-[8px] bg-orange-500/10 text-orange-300 rounded cursor-pointer hover:bg-orange-500/30 ${selectedHashtags.includes(h) ? 'ring-1 ring-orange-400' : ''}`}
+                                                >
+                                                    #{h}
+                                                </span>
                                             ))}
                                             {(ev.hashtags || []).length > 4 && <span className="text-[8px] text-gray-500">+{(ev.hashtags || []).length - 4}</span>}
                                         </div>
@@ -997,7 +1106,13 @@ return;
                             {(selectedFeature.hashtags || []).length > 0 && (
                                 <div className="flex flex-wrap gap-1 mt-2 mb-3">
                                     {(selectedFeature.hashtags || []).map((h: string, i: number) => (
-                                        <span key={i} className="px-1.5 py-0.5 text-[10px] bg-orange-500/10 text-orange-300 rounded">#{h}</span>
+                                        <span
+                                            key={i}
+                                            onClick={(e) => { e.stopPropagation(); toggleHashtag(h); }}
+                                            className={`px-1.5 py-0.5 text-[10px] bg-orange-500/10 text-orange-300 rounded cursor-pointer hover:bg-orange-500/30 ${selectedHashtags.includes(h) ? 'ring-1 ring-orange-400' : ''}`}
+                                        >
+                                            #{h}
+                                        </span>
                                     ))}
                                 </div>
                             )}
@@ -1026,7 +1141,7 @@ return;
                     <div className="relative w-full max-h-[70vh] rounded-t-3xl border-t border-white/10 bg-gray-900 p-4 overflow-hidden">
                         <div className="flex items-center justify-between mb-3">
                             <div className="font-semibold">
-                                {searchTerm ? 'Search results' : 'Currently Happening'} ({currentEvents.length})
+                                {searchTerm || selectedHashtags.length > 0 ? 'Filtered results' : (timespanHours === 24 ? 'Currently Happening' : `Last ${timespanHours}h`)} ({currentEvents.length})
                             </div>
                             <button onClick={() => setShowEventsSheet(false)} className="text-xl" aria-label="Close">
                                 <MdClose />
@@ -1048,7 +1163,13 @@ return;
                                     {(ev.hashtags || []).length > 0 && (
                                         <div className="flex flex-wrap gap-1 mt-1">
                                             {(ev.hashtags || []).slice(0, 4).map((h: string, i: number) => (
-                                                <span key={i} className="px-1 py-0.5 text-[9px] bg-orange-500/10 text-orange-300 rounded">#{h}</span>
+                                                <span
+                                                    key={i}
+                                                    onClick={(e) => { e.stopPropagation(); toggleHashtag(h); }}
+                                                    className={`px-1 py-0.5 text-[9px] bg-orange-500/10 text-orange-300 rounded cursor-pointer hover:bg-orange-500/30 ${selectedHashtags.includes(h) ? 'ring-1 ring-orange-400' : ''}`}
+                                                >
+                                                    #{h}
+                                                </span>
                                             ))}
                                             {(ev.hashtags || []).length > 4 && <span className="text-[9px] text-gray-500">+{(ev.hashtags || []).length - 4}</span>}
                                         </div>
@@ -1057,7 +1178,7 @@ return;
                             ))}
                             {currentEvents.length === 0 && (
                                 <div className="text-gray-500 text-center py-8">
-                                    {searchTerm ? 'No matches for your search.' : 'No recent events.'}
+                                    {searchTerm || selectedHashtags.length > 0 ? 'No matches for your search.' : `No events in the last ${timespanHours}h.`}
                                 </div>
                             )}
                         </div>
@@ -1086,7 +1207,13 @@ return;
                         {(selectedFeature.hashtags || []).length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-2 mb-4">
                                 {(selectedFeature.hashtags || []).map((h: string, i: number) => (
-                                    <span key={i} className="px-1.5 py-0.5 text-[11px] bg-orange-500/10 text-orange-300 rounded">#{h}</span>
+                                    <span
+                                        key={i}
+                                        onClick={(e) => { e.stopPropagation(); toggleHashtag(h); }}
+                                        className={`px-1.5 py-0.5 text-[11px] bg-orange-500/10 text-orange-300 rounded cursor-pointer hover:bg-orange-500/30 ${selectedHashtags.includes(h) ? 'ring-1 ring-orange-400' : ''}`}
+                                    >
+                                        #{h}
+                                    </span>
                                 ))}
                             </div>
                         )}

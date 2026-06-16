@@ -13,11 +13,21 @@ class MapDataController extends Controller
     {
         $query = PreprocessedNews::whereNotNull('latitude')
             ->whereNotNull('longitude')
-            ->whereNotIn('geocode_confidence', ['none'])
-            ->where('fetched_at', '>=', now()->subHours(24));
+            ->whereNotIn('geocode_confidence', ['none']);
+
+        $hours = $request->input('hours', 24);
+        $hours = max(1, min(24, (int) $hours));
+        $query->where('fetched_at', '>=', now()->subHours($hours));
 
         if ($search = $request->input('search')) {
             $query->search($search);
+        }
+
+        if ($hashtagStr = $request->input('hashtags')) {
+            $tags = array_filter(explode(',', $hashtagStr));
+            foreach ($tags as $tag) {
+                $query->whereHas('hashtags', fn ($q) => $q->where('name', $tag));
+            }
         }
 
         $features = $query->with('hashtags')
