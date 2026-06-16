@@ -157,7 +157,11 @@ export default function Map() {
     }
 
     const selectEvent = (ev: any) => {
-        setSelectedFeature(ev);
+        const safeEv = {
+            ...ev,
+            hashtags: Array.isArray(ev.hashtags) ? ev.hashtags : [],
+        };
+        setSelectedFeature(safeEv);
         if (mapRef.current && ev.lng != null && ev.lat != null) {
             mapRef.current.easeTo({
                 center: [ev.lng, ev.lat],
@@ -222,6 +226,7 @@ export default function Map() {
                 ...f.properties,
                 lng: f.geometry.coordinates[0],
                 lat: f.geometry.coordinates[1],
+                hashtags: Array.isArray(f.properties?.hashtags) ? f.properties.hashtags : [],
             }))
             .sort((a: any, b: any) => {
                 const ta = a.fetched_at ? new Date(a.fetched_at).getTime() : 0;
@@ -402,6 +407,7 @@ export default function Map() {
                     ...props,
                     lng: feature.geometry.coordinates[0],
                     lat: feature.geometry.coordinates[1],
+                    hashtags: Array.isArray(props.hashtags) ? props.hashtags : [],
                 };
                 selectEvent(ev);
             }
@@ -483,6 +489,7 @@ export default function Map() {
                 ...nearest.properties,
                 lng: nearest.geometry.coordinates[0],
                 lat: nearest.geometry.coordinates[1],
+                hashtags: Array.isArray(nearest.properties?.hashtags) ? nearest.properties.hashtags : [],
             };
             setSelectedFeature(props);
 
@@ -578,6 +585,7 @@ export default function Map() {
                         ...f.properties,
                         lng: f.geometry.coordinates[0],
                         lat: f.geometry.coordinates[1],
+                        hashtags: Array.isArray(f.properties?.hashtags) ? f.properties.hashtags : [],
                     }))
                     .sort((a: any, b: any) => {
                         const ta = a.fetched_at ? new Date(a.fetched_at).getTime() : 0;
@@ -783,6 +791,7 @@ return;
                     ...f.properties,
                     lng: f.geometry.coordinates[0],
                     lat: f.geometry.coordinates[1],
+                    hashtags: Array.isArray(f.properties?.hashtags) ? f.properties.hashtags : [],
                 }))
                 .sort((a: any, b: any) => {
                     const ta = a.fetched_at ? new Date(a.fetched_at).getTime() : 0;
@@ -1040,20 +1049,23 @@ return;
                                     <div className="font-medium truncate text-gray-100">{ev.place_name || 'Unknown'}</div>
                                     <div className="text-gray-400 line-clamp-2 text-[10px] mt-0.5">{ev.headline}</div>
                                     <div className="text-[9px] text-gray-500 mt-1">{formatTime(ev.fetched_at)}</div>
-                                    {(ev.hashtags || []).length > 0 && (
-                                        <div className="flex flex-wrap gap-1 mt-1">
-                                            {(ev.hashtags || []).slice(0, 4).map((h: string, i: number) => (
-                                                <span
-                                                    key={i}
-                                                    onClick={(e) => { e.stopPropagation(); toggleHashtag(h); }}
-                                                    className={`px-1 py-0.5 text-[8px] bg-orange-500/10 text-orange-300 rounded cursor-pointer hover:bg-orange-500/30 ${selectedHashtags.includes(h) ? 'ring-1 ring-orange-400' : ''}`}
-                                                >
-                                                    #{h}
-                                                </span>
-                                            ))}
-                                            {(ev.hashtags || []).length > 4 && <span className="text-[8px] text-gray-500">+{(ev.hashtags || []).length - 4}</span>}
-                                        </div>
-                                    )}
+                                    {(() => {
+                                        const hs = Array.isArray(ev.hashtags) ? ev.hashtags : [];
+                                        return hs.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                {hs.slice(0, 4).map((h: string, i: number) => (
+                                                    <span
+                                                        key={i}
+                                                        onClick={(e) => { e.stopPropagation(); toggleHashtag(h); }}
+                                                        className={`px-1 py-0.5 text-[8px] bg-orange-500/10 text-orange-300 rounded cursor-pointer hover:bg-orange-500/30 ${selectedHashtags.includes(h) ? 'ring-1 ring-orange-400' : ''}`}
+                                                    >
+                                                        #{h}
+                                                    </span>
+                                                ))}
+                                                {hs.length > 4 && <span className="text-[8px] text-gray-500">+{hs.length - 4}</span>}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             ))}
                         </div>
@@ -1103,19 +1115,22 @@ return;
                             {selectedFeature.summary && (
                                 <p className="text-xs text-gray-300 line-clamp-5 mb-3">{selectedFeature.summary}</p>
                             )}
-                            {(selectedFeature.hashtags || []).length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-2 mb-3">
-                                    {(selectedFeature.hashtags || []).map((h: string, i: number) => (
-                                        <span
-                                            key={i}
-                                            onClick={(e) => { e.stopPropagation(); toggleHashtag(h); }}
-                                            className={`px-1.5 py-0.5 text-[10px] bg-orange-500/10 text-orange-300 rounded cursor-pointer hover:bg-orange-500/30 ${selectedHashtags.includes(h) ? 'ring-1 ring-orange-400' : ''}`}
-                                        >
-                                            #{h}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
+                            {(() => {
+                                const hs = Array.isArray(selectedFeature.hashtags) ? selectedFeature.hashtags : [];
+                                return hs.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-2 mb-3">
+                                        {hs.map((h: string, i: number) => (
+                                            <span
+                                                key={i}
+                                                onClick={(e) => { e.stopPropagation(); toggleHashtag(h); }}
+                                                className={`px-1.5 py-0.5 text-[10px] bg-orange-500/10 text-orange-300 rounded cursor-pointer hover:bg-orange-500/30 ${selectedHashtags.includes(h) ? 'ring-1 ring-orange-400' : ''}`}
+                                            >
+                                                #{h}
+                                            </span>
+                                        ))}
+                                    </div>
+                                );
+                            })()}
                             <div className="flex justify-between text-xs">
                                 <span className="text-gray-400">{selectedFeature.provider}</span>
                                 <a
@@ -1160,20 +1175,23 @@ return;
                                     <div className="font-medium">{ev.place_name}</div>
                                     <div className="text-xs text-gray-300 mt-1 line-clamp-2">{ev.headline}</div>
                                     <div className="text-[10px] text-gray-500 mt-1">{formatTime(ev.fetched_at)}</div>
-                                    {(ev.hashtags || []).length > 0 && (
-                                        <div className="flex flex-wrap gap-1 mt-1">
-                                            {(ev.hashtags || []).slice(0, 4).map((h: string, i: number) => (
-                                                <span
-                                                    key={i}
-                                                    onClick={(e) => { e.stopPropagation(); toggleHashtag(h); }}
-                                                    className={`px-1 py-0.5 text-[9px] bg-orange-500/10 text-orange-300 rounded cursor-pointer hover:bg-orange-500/30 ${selectedHashtags.includes(h) ? 'ring-1 ring-orange-400' : ''}`}
-                                                >
-                                                    #{h}
-                                                </span>
-                                            ))}
-                                            {(ev.hashtags || []).length > 4 && <span className="text-[9px] text-gray-500">+{(ev.hashtags || []).length - 4}</span>}
-                                        </div>
-                                    )}
+                                    {(() => {
+                                        const hs = Array.isArray(ev.hashtags) ? ev.hashtags : [];
+                                        return hs.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                {hs.slice(0, 4).map((h: string, i: number) => (
+                                                    <span
+                                                        key={i}
+                                                        onClick={(e) => { e.stopPropagation(); toggleHashtag(h); }}
+                                                        className={`px-1 py-0.5 text-[9px] bg-orange-500/10 text-orange-300 rounded cursor-pointer hover:bg-orange-500/30 ${selectedHashtags.includes(h) ? 'ring-1 ring-orange-400' : ''}`}
+                                                    >
+                                                        #{h}
+                                                    </span>
+                                                ))}
+                                                {hs.length > 4 && <span className="text-[9px] text-gray-500">+{hs.length - 4}</span>}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             ))}
                             {currentEvents.length === 0 && (
@@ -1204,19 +1222,22 @@ return;
                         {selectedFeature.summary && (
                             <p className="text-sm text-gray-300 mb-4">{selectedFeature.summary}</p>
                         )}
-                        {(selectedFeature.hashtags || []).length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2 mb-4">
-                                {(selectedFeature.hashtags || []).map((h: string, i: number) => (
-                                    <span
-                                        key={i}
-                                        onClick={(e) => { e.stopPropagation(); toggleHashtag(h); }}
-                                        className={`px-1.5 py-0.5 text-[11px] bg-orange-500/10 text-orange-300 rounded cursor-pointer hover:bg-orange-500/30 ${selectedHashtags.includes(h) ? 'ring-1 ring-orange-400' : ''}`}
-                                    >
-                                        #{h}
-                                    </span>
-                                ))}
-                            </div>
-                        )}
+                        {(() => {
+                            const hs = Array.isArray(selectedFeature.hashtags) ? selectedFeature.hashtags : [];
+                            return hs.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2 mb-4">
+                                    {hs.map((h: string, i: number) => (
+                                        <span
+                                            key={i}
+                                            onClick={(e) => { e.stopPropagation(); toggleHashtag(h); }}
+                                            className={`px-1.5 py-0.5 text-[11px] bg-orange-500/10 text-orange-300 rounded cursor-pointer hover:bg-orange-500/30 ${selectedHashtags.includes(h) ? 'ring-1 ring-orange-400' : ''}`}
+                                        >
+                                            #{h}
+                                        </span>
+                                    ))}
+                                </div>
+                            );
+                        })()}
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-400">{selectedFeature.provider}</span>
                             <a
