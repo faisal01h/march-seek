@@ -20,7 +20,8 @@ class MapDataController extends Controller
             $query->search($search);
         }
 
-        $features = $query->latest('fetched_at')
+        $features = $query->with('hashtags')
+            ->latest('fetched_at')
             ->limit(1000)
             ->get()
             ->map(fn ($n) => [
@@ -37,6 +38,7 @@ class MapDataController extends Controller
                     'provider' => $n->news_provider,
                     'place_name' => $n->place_name,
                     'fetched_at' => $n->fetched_at?->toISOString(),
+                    'hashtags' => $n->hashtags->pluck('name')->toArray(),
                 ],
             ]);
 

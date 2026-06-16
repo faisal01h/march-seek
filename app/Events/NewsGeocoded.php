@@ -27,16 +27,19 @@ class NewsGeocoded implements ShouldBroadcast
 
     public function broadcastWith(): array
     {
+        $hashtags = $this->news->hashtags()->pluck('name')->toArray();
+
         return [
-            'id'         => $this->news->id,
-            'headline'   => $this->news->headline,
-            'summary'    => $this->news->summary,
+            'id' => $this->news->id,
+            'headline' => $this->news->headline,
+            'summary' => $this->news->summary,
             'source_url' => $this->news->news_source_url,
-            'provider'   => $this->news->news_provider,
+            'provider' => $this->news->news_provider,
             'place_name' => $this->news->place_name,
-            'latitude'   => $this->news->latitude,
-            'longitude'  => $this->news->longitude,
+            'latitude' => $this->news->latitude,
+            'longitude' => $this->news->longitude,
             'fetched_at' => $this->news->fetched_at?->toISOString(),
+            'hashtags' => $hashtags,
         ];
     }
 }

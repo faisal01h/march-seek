@@ -2,7 +2,7 @@ import { usePage } from '@inertiajs/react';
 import Echo from 'laravel-echo';
 import mapboxgl from 'mapbox-gl';
 import Pusher from 'pusher-js';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { MdAdminPanelSettings, MdChat, MdClose, MdLayers, MdList, MdMyLocation } from 'react-icons/md';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -14,6 +14,7 @@ interface MapFeatureProperties {
     provider?: string;
     place_name?: string;
     fetched_at?: string;
+    hashtags?: string[];
 }
 
 type SelectedFeature = MapFeatureProperties;
@@ -72,6 +73,21 @@ export default function Map() {
     const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const searchTermRef = useRef('');
     const [showStylePicker, setShowStylePicker] = useState(false);
+
+    // Trending hashtags/topics computed client-side from loaded active features (respects current search/filter)
+    const trendingHashtags = useMemo(() => {
+        const counts: Record<string, number> = {};
+        allFeatures.forEach((f: any) => {
+            const tags: string[] = f.properties?.hashtags || [];
+            tags.forEach((tag: string) => {
+                counts[tag] = (counts[tag] || 0) + 1;
+            });
+        });
+        return Object.entries(counts)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 10)
+            .map(([tag, count]) => ({ tag, count }));
+    }, [allFeatures]);
 
     const addUserLocationMarker = () => {
         if (!userLocation || !mapRef.current) return;
@@ -184,7 +200,7 @@ export default function Map() {
         );
         setAllFeatures(features);
 
-        // Rebuild the "Currently Happening" top list from (active) results
+        // Rebuild the "Currently Happening" list from (active) results - show all, not limited to 8
         const events = [...features]
             .map((f: any) => ({
                 ...f.properties,
@@ -195,8 +211,7 @@ export default function Map() {
                 const ta = a.fetched_at ? new Date(a.fetched_at).getTime() : 0;
                 const tb = b.fetched_at ? new Date(b.fetched_at).getTime() : 0;
                 return tb - ta;
-            })
-            .slice(0, 8);
+            });
         setCurrentEvents(events);
 
         return {
@@ -513,8 +528,7 @@ export default function Map() {
                         const ta = a.fetched_at ? new Date(a.fetched_at).getTime() : 0;
                         const tb = b.fetched_at ? new Date(b.fetched_at).getTime() : 0;
                         return tb - ta;
-                    })
-                    .slice(0, 8);
+                    });
                 setCurrentEvents(events);
             }
         }, 5 * 60 * 1000); // every 5 minutes
@@ -687,6 +701,7 @@ return;
                         provider: data.provider,
                         place_name: data.place_name,
                         fetched_at: data.fetched_at,
+                        hashtags: data.hashtags || [],
                     },
                 };
                 activeFeatures = [...activeFeatures, newFeature];
@@ -699,7 +714,7 @@ return;
 
             setAllFeatures(activeFeatures);
 
-            // Keep "Currently Happening" list in sync with only active items (most recent 8)
+            // Keep "Currently Happening" list in sync with only active items (now shows all, no 8 limit)
             const events = [...activeFeatures]
                 .map((f: any) => ({
                     ...f.properties,
@@ -710,8 +725,7 @@ return;
                     const ta = a.fetched_at ? new Date(a.fetched_at).getTime() : 0;
                     const tb = b.fetched_at ? new Date(b.fetched_at).getTime() : 0;
                     return tb - ta;
-                })
-                .slice(0, 8);
+                });
             setCurrentEvents(events);
         });
 
@@ -870,8 +884,29 @@ return;
             </div>
 
             <div className="flex flex-1 overflow-hidden">
-                {/* Left sidebar - Currently Happening (desktop) */}
+                {/* Left sidebar - Trending + Currently Happening (desktop) */}
                 <div className="hidden lg:flex w-72 flex-col border-r border-white/10 bg-gray-900/60 overflow-hidden">
+                    {/* Trending section - on top as requested */}
+                    <div className="border-b border-white/10">
+                        <div className="p-3 text-sm font-semibold text-orange-400 flex items-center gap-2">
+                            Trending
+                            <span className="text-[10px] font-normal text-gray-400">({trendingHashtags.length})</span>
+                        </div>
+                        {trendingHashtags.length > 0 ? (
+                            <div className="p-2 pt-0 space-y-0.5 text-xs max-h-32 overflow-y-auto border-b border-white/5">
+                                {trendingHashtags.map((t, i) => (
+                                    <div key={i} className="flex items-center justify-between px-2 py-0.5 rounded hover:bg-white/5">
+                                        <span className="text-orange-300">#{t.tag}</span>
+                                        <span className="text-gray-500 tabular-nums">{t.count}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="px-3 pb-3 text-[10px] text-gray-500">No trending hashtags yet.</div>
+                        )}
+                    </div>
+
+                    {/* Currently Happening */}
                     <div className="flex items-center justify-between border-b border-white/10 p-3 text-sm font-semibold">
                         <div className="flex items-center gap-2 text-orange-400">
                             {searchTerm ? 'Search results' : 'Currently Happening'}
@@ -902,6 +937,14 @@ return;
                                     <div className="font-medium truncate text-gray-100">{ev.place_name || 'Unknown'}</div>
                                     <div className="text-gray-400 line-clamp-2 text-[10px] mt-0.5">{ev.headline}</div>
                                     <div className="text-[9px] text-gray-500 mt-1">{formatTime(ev.fetched_at)}</div>
+                                    {(ev.hashtags || []).length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                            {(ev.hashtags || []).slice(0, 4).map((h: string, i: number) => (
+                                                <span key={i} className="px-1 py-0.5 text-[8px] bg-orange-500/10 text-orange-300 rounded">#{h}</span>
+                                            ))}
+                                            {(ev.hashtags || []).length > 4 && <span className="text-[8px] text-gray-500">+{(ev.hashtags || []).length - 4}</span>}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -951,6 +994,13 @@ return;
                             {selectedFeature.summary && (
                                 <p className="text-xs text-gray-300 line-clamp-5 mb-3">{selectedFeature.summary}</p>
                             )}
+                            {(selectedFeature.hashtags || []).length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2 mb-3">
+                                    {(selectedFeature.hashtags || []).map((h: string, i: number) => (
+                                        <span key={i} className="px-1.5 py-0.5 text-[10px] bg-orange-500/10 text-orange-300 rounded">#{h}</span>
+                                    ))}
+                                </div>
+                            )}
                             <div className="flex justify-between text-xs">
                                 <span className="text-gray-400">{selectedFeature.provider}</span>
                                 <a
@@ -995,6 +1045,14 @@ return;
                                     <div className="font-medium">{ev.place_name}</div>
                                     <div className="text-xs text-gray-300 mt-1 line-clamp-2">{ev.headline}</div>
                                     <div className="text-[10px] text-gray-500 mt-1">{formatTime(ev.fetched_at)}</div>
+                                    {(ev.hashtags || []).length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                            {(ev.hashtags || []).slice(0, 4).map((h: string, i: number) => (
+                                                <span key={i} className="px-1 py-0.5 text-[9px] bg-orange-500/10 text-orange-300 rounded">#{h}</span>
+                                            ))}
+                                            {(ev.hashtags || []).length > 4 && <span className="text-[9px] text-gray-500">+{(ev.hashtags || []).length - 4}</span>}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                             {currentEvents.length === 0 && (
@@ -1024,6 +1082,13 @@ return;
                         <h3 className="font-semibold text-base mb-2">{selectedFeature.headline}</h3>
                         {selectedFeature.summary && (
                             <p className="text-sm text-gray-300 mb-4">{selectedFeature.summary}</p>
+                        )}
+                        {(selectedFeature.hashtags || []).length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2 mb-4">
+                                {(selectedFeature.hashtags || []).map((h: string, i: number) => (
+                                    <span key={i} className="px-1.5 py-0.5 text-[11px] bg-orange-500/10 text-orange-300 rounded">#{h}</span>
+                                ))}
+                            </div>
                         )}
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-400">{selectedFeature.provider}</span>
